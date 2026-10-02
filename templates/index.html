@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fila de Atendimento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topo">
+        <div>
+            <span class="tag">MINI APP</span>
+            <h1>Fila de Atendimento</h1>
+            <p>Gerenciamento simples de clientes e atendimentos.</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('nome').focus()">
+            + Novo cliente
+        </button>
+    </header>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mensagens">
+                    {% for categoria, mensagem in messages %}
+                        <div class="mensagem {{ categoria }}">{{ mensagem }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="cards">
+            <div class="card indicador">
+                <span>Aguardando</span>
+                <strong>{{ totais.aguardando or 0 }}</strong>
+            </div>
+            <div class="card indicador">
+                <span>Em atendimento</span>
+                <strong>{{ totais.atendimento or 0 }}</strong>
+            </div>
+            <div class="card indicador">
+                <span>Concluídos</span>
+                <strong>{{ totais.concluidos or 0 }}</strong>
+            </div>
+            <div class="card indicador">
+                <span>Cancelados</span>
+                <strong>{{ totais.cancelados or 0 }}</strong>
+            </div>
+        </section>
+
+        <section class="grid-principal">
+            <div class="card formulario">
+                <div class="titulo-secao">
+                    <div>
+                        <span class="tag">CADASTRO</span>
+                        <h2>Adicionar cliente</h2>
+                    </div>
+                </div>
+
+                <form action="{{ url_for('cadastrar') }}" method="POST">
+                    <label for="nome">Nome do cliente</label>
+                    <input id="nome" name="nome" type="text" placeholder="Digite o nome" required maxlength="100">
+
+                    <label for="prioridade">Prioridade</label>
+                    <select id="prioridade" name="prioridade">
+                        <option value="Normal">Normal</option>
+                        <option value="Preferencial">Preferencial</option>
+                    </select>
+
+                    <button class="btn btn-primary btn-full" type="submit">Adicionar à fila</button>
+                </form>
+            </div>
+
+            <div class="card acao">
+                <div class="titulo-secao">
+                    <div>
+                        <span class="tag">ATENDIMENTO</span>
+                        <h2>Chamar próximo</h2>
+                    </div>
+                </div>
+
+                <p class="descricao">
+                    O sistema chama primeiro os clientes preferenciais. Dentro de cada prioridade,
+                    a ordem de chegada é respeitada.
+                </p>
+
+                <form action="{{ url_for('chamar_proximo') }}" method="POST">
+                    <button class="btn btn-dark btn-full" type="submit">📢 Chamar próximo cliente</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="titulo-secao">
+                <div>
+                    <span class="tag">FILA</span>
+                    <h2>Clientes aguardando</h2>
+                </div>
+                <span class="contador">{{ fila|length }} na fila</span>
+            </div>
+
+            {% if fila %}
+                <div class="tabela-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Cliente</th>
+                                <th>Prioridade</th>
+                                <th>Entrada</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cliente in fila %}
+                            <tr>
+                                <td><strong>{{ loop.index }}</strong></td>
+                                <td>{{ cliente.nome }}</td>
+                                <td>
+                                    <span class="badge {{ 'preferencial' if cliente.prioridade == 'Preferencial' else 'normal' }}">
+                                        {{ cliente.prioridade }}
+                                    </span>
+                                </td>
+                                <td>{{ cliente.criado_em }}</td>
+                                <td class="acoes">
+                                    <form action="{{ url_for('alterar_status', atendimento_id=cliente.id) }}" method="POST">
+                                        <input type="hidden" name="status" value="Em Atendimento">
+                                        <button class="btn-small atendimento" type="submit">Atender</button>
+                                    </form>
+                                    <form action="{{ url_for('cancelar', atendimento_id=cliente.id) }}" method="POST">
+                                        <button class="btn-small cancelar" type="submit">Cancelar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="vazio">A fila está vazia. Cadastre um cliente para começar.</div>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="titulo-secao">
+                <div>
+                    <span class="tag">AGORA</span>
+                    <h2>Em atendimento</h2>
+                </div>
+            </div>
+
+            {% if em_atendimento %}
+                <div class="atendimentos">
+                    {% for cliente in em_atendimento %}
+                    <div class="atendimento-item">
+                        <div>
+                            <strong>{{ cliente.nome }}</strong>
+                            <span>Chamado em {{ cliente.chamado_em }}</span>
+                        </div>
+                        <div class="acoes">
+                            <form action="{{ url_for('alterar_status', atendimento_id=cliente.id) }}" method="POST">
+                                <input type="hidden" name="status" value="Concluído">
+                                <button class="btn-small concluir" type="submit">Concluir</button>
+                            </form>
+                            <form action="{{ url_for('cancelar', atendimento_id=cliente.id) }}" method="POST">
+                                <button class="btn-small cancelar" type="submit">Cancelar</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="vazio">Nenhum cliente está em atendimento.</div>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="titulo-secao">
+                <div>
+                    <span class="tag">HISTÓRICO</span>
+                    <h2>Últimos atendimentos</h2>
+                </div>
+            </div>
+
+            {% if historico %}
+                <div class="tabela-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Prioridade</th>
+                                <th>Status</th>
+                                <th>Entrada</th>
+                                <th>Finalização</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cliente in historico %}
+                            <tr>
+                                <td>{{ cliente.nome }}</td>
+                                <td>{{ cliente.prioridade }}</td>
+                                <td>
+                                    <span class="badge status-{{ cliente.status|lower|replace(' ', '-')|replace('ã','a') }}">
+                                        {{ cliente.status }}
+                                    </span>
+                                </td>
+                                <td>{{ cliente.criado_em }}</td>
+                                <td>{{ cliente.finalizado_em or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="vazio">Ainda não existem atendimentos finalizados.</div>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer>
+        Mini App de Fila de Atendimento · Python + Flask + SQLite
+    </footer>
+
+    <script>
+        // Atualiza a página automaticamente a cada 10 segundos,
+        // permitindo acompanhar a fila sem precisar clicar em atualizar.
+        setTimeout(() => {
+            window.location.reload();
+        }, 10000);
+    </script>
+</body>
+</html>
